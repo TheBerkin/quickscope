@@ -1,0 +1,12 @@
+[package]
+name = "hash-scope"
+description = "Multi-layer HashMap and HashSet implementations for performant representation of lexical variable scopes"
+version = "0.1.0"
+authors = ["Nicholas Fleck <TheBerkin@users.noreply.github.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+smallvec = "1.4.2"
+indexmap = "1.6.0"
