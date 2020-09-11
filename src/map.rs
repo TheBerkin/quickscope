@@ -205,6 +205,26 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
     }
     None
   }
+
+  /// Gets the depth of the specified key (i.e. how many layers down the key is).
+  /// A depth of 0 means that the current layer contains the key.
+  ///
+  /// Returns `None` if the key does not exist.
+  #[inline]
+  pub fn depth_of<Q: ?Sized>(&self, key: &Q) -> Option<usize> 
+  where
+    K: Borrow<Q>,
+    Q: Eq + Hash,
+  {
+    if let Some((index, ..)) = self.map.get_full(key) {
+      for (depth, layer) in self.layers.iter().rev().enumerate() {
+        if layer.contains(&index) {
+          return Some(depth);
+        }
+      }
+    }
+    None
+  }
   
   /// Adds a value to the topmost layer.
   #[inline]
@@ -247,5 +267,155 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
     self.map.clear();
     self.layers.clear();
     self.layers.push(Default::default())
+  }
+}
+
+#[cfg(test)]
+mod test {
+  use super::*;
+
+  #[test]
+  fn map_init() {
+    let map: ScopeMap<String, i32> = ScopeMap::new();
+    assert_eq!(0, map.len());
+    assert_eq!(1, map.layer_count());
+    assert!(map.is_empty());
+  }
+
+  #[test]
+  fn map_default() {
+    let map: ScopeMap<String, i32> = Default::default();
+    assert_eq!(0, map.len());
+    assert_eq!(1, map.layer_count());
+    assert!(map.is_empty());
+  }
+
+  #[test]
+  fn map_capacity() {
+    let map: ScopeMap<String, i32> = ScopeMap::with_capacity(32);
+    assert_eq!(32, map.capacity());
+  }
+
+  #[test]
+  fn map_define() {
+    let mut map = ScopeMap::new();
+    map.define("foo", 123);
+    assert_eq!(1, map.len());
+    assert_eq!(Some(&123), map.get("foo"));
+  }
+
+  #[test]
+  fn map_layer_count() {
+    let mut map: ScopeMap<String, i32> = Default::default();
+    map.push_layer();
+    assert_eq!(2, map.layer_count());
+    map.pop_layer();
+    assert_eq!(1, map.layer_count());
+  }
+
+  #[test]
+  fn map_try_pop_first_layer() {
+    let mut map: ScopeMap<String, i32> = Default::default();
+    assert_eq!(false, map.pop_layer());
+    assert_eq!(1, map.layer_count());
+  }
+
+  #[test]
+  fn map_get_none() {
+    let mut map = ScopeMap::new();
+    map.define("foo", 123);
+    assert_eq!(None, map.get("bar"));
+  }
+
+  #[test]
+  fn map_get_multi_layer() {
+    let mut map = ScopeMap::new();
+    map.define("foo", 123);
+    map.push_layer();
+    map.define("bar", 456);
+    assert_eq!(Some(&123), map.get("foo"));
+    assert_eq!(Some(&456), map.get("bar"));
+  }
+
+  #[test]
+  fn map_get_parent() {
+    let mut map = ScopeMap::new();
+    map.define("foo", 123);
+    map.push_layer();
+    map.define("foo", 456);
+    assert_eq!(Some(&456), map.get_parent("foo", 0));
+    assert_eq!(Some(&123), map.get_parent("foo", 1));
+  }
+
+  #[test]
+  fn map_get_parent_none() {
+    let mut map = ScopeMap::new();
+    map.push_layer();
+    map.define("foo", 123);
+    assert_eq!(None, map.get_parent("foo", 1));
+  }
+
+  #[test]
+  fn map_define_override() {
+    let mut map = ScopeMap::new();
+    map.define("foo", 123);
+    map.push_layer();
+    map.define("foo", 456);
+    assert_eq!(Some(&456), map.get("foo"));
+  }
+
+  #[test]
+  fn map_delete_override() {
+    let mut map = ScopeMap::new();
+    map.define("foo", 123);
+    map.push_layer();
+    map.define("foo", 456);
+    map.delete("foo");
+    assert_eq!(Some(&123), map.get("foo"));
+  }
+
+  #[test]
+  fn map_pop_override() {
+    let mut map = ScopeMap::new();
+    map.define("foo", 123);
+    map.push_layer();
+    map.define("foo", 456);
+    map.pop_layer();
+    assert_eq!(Some(&123), map.get("foo"));
+  }
+
+  #[test]
+  fn map_get_mut() {
+    let mut map = ScopeMap::new();
+    map.define("foo", 123);
+    if let Some(foo) = map.get_mut("foo") {
+      *foo = 456;
+    }
+    assert_eq!(Some(&456), map.get("foo"));
+  }
+
+  #[test]
+  fn map_contains_key() {
+    let mut map = ScopeMap::new();
+    map.define("foo", 123);
+    assert!(map.contains_key("foo"));
+  }
+
+  #[test]
+  fn map_not_contains_key() {
+    let mut map = ScopeMap::new();
+    map.define("foo", 123);
+    assert!(!map.contains_key("bar"));
+  }
+
+  #[test]
+  fn map_depth_of() {
+    let mut map = ScopeMap::new();
+    map.define("foo", 123);
+    map.push_layer();
+    map.define("bar", 456);
+    assert_eq!(Some(1), map.depth_of("foo"));
+    assert_eq!(Some(0), map.depth_of("bar"));
+    assert_eq!(None, map.depth_of("baz"));
   }
 }

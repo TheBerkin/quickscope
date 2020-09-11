@@ -17,7 +17,7 @@ This crate is optimized so that lookups are O(1) on average with respect to laye
 ## Example
 
 ```rust
-let mut vars: ScopeMap<String, i32> = Default::default();
+let mut vars = ScopeMap::new();
 
 // Define two variables in main scope
 vars.define("a", 1);

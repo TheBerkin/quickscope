@@ -116,4 +116,13 @@ impl<T: Eq + Hash, S: BuildHasher> ScopeSet<T, S> {
   {
     self.map.contains_key_at_top(key)
   }
+
+  #[inline]
+  pub fn depth_of<Q: ?Sized>(&self, key: &Q) -> Option<usize> 
+  where
+    T: Borrow<Q>,
+    Q: Eq + Hash,
+  {
+    self.map.depth_of(key)
+  }
 }
