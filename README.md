@@ -19,9 +19,9 @@ This crate contains two data structures, `ScopeMap` and `ScopeSet`, for represen
 
 ## Rationale (i.e. "why _another_ one of these?")
 
-I know I'm not the first one to do this! There are other, equally usable crates for the same purpose (see: [hash-chain](https://crates.io/crates/hash-chain), [chainmap](https://crates.io/crates/chainmap), [chain-map](https://crates.io/crates/chain-map)), but their implementations are such that lookups are O(n) worst-case with respect to layer count. I found that this didn't suit my needs.
+I know I'm not the first one to do this! There are other, equally usable crates for the same purpose (see: [hash-chain](https://crates.io/crates/hash-chain), [chainmap](https://crates.io/crates/chainmap), [chain-map](https://crates.io/crates/chain-map)), but their implementations are such that lookups are O(n) worst-case in relation to layer count. I found that this didn't suit my needs.
 
-This crate is optimized so that lookups are O(1) on average with respect to layer count. The trade-off is that popping layers is an O(n) operation with respect to the number of keys stored in the removed layer. I think this is an acceptable compromise in use cases requiring fast lookups across a large number of layers.
+This crate is optimized so that lookups are O(1) on average in relation to layer count. The trade-off is that popping layers is an O(n) operation in relation to the number of keys stored in the removed layer. I think this is an acceptable compromise in use cases requiring fast lookups across a large number of layers.
 
 ## Example
 

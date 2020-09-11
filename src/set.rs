@@ -79,13 +79,17 @@ impl<T, S: BuildHasher> ScopeSet<T, S> {
   }
 
   /// Adds a new, empty layer.
+  ///
+  /// Computes in **O(1)** time.
   #[inline]
   pub fn push_layer(&mut self) {
     self.map.push_layer()
   }
 
   /// Removes the topmost layer (if it isn't the bottom layer) and all associated keys.
-  /// Returns `truw` if the layer was removed.
+  /// Returns `true` if the layer was removed.
+  ///
+  /// Computes in **O(n)** time in relation to the number of keys stored in the removed layer.
   #[inline]
   pub fn pop_layer(&mut self) -> bool {
     self.map.pop_layer()
@@ -146,7 +150,7 @@ impl<T: Eq + Hash, S: BuildHasher> ScopeSet<T, S> {
   ///
   /// Returns `None` if the key does not exist.
   ///
-  /// Computes in **O(n)** time (worst-case) with respect to layer count.
+  /// Computes in **O(n)** time (worst-case) in relation to layer count.
   #[inline]
   pub fn depth_of<Q: ?Sized>(&self, key: &Q) -> Option<usize> 
   where

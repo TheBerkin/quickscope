@@ -113,6 +113,8 @@ where
   S: BuildHasher,
 {
   /// Adds a new, empty layer.
+  ///
+  /// Computes in **O(1)** time.
   #[inline]
   pub fn push_layer(&mut self) {
     self.layers.push(Default::default())
@@ -120,6 +122,8 @@ where
   
   /// Removes the topmost layer (if it isn't the bottom layer) and all associated keys/values.
   /// Returns `true` if a layer was removed.
+  ///
+  /// Computes in **O(n)** time in relation to the number of keys stored in the removed layer.
   #[inline]
   pub fn pop_layer(&mut self) -> bool {
     // Don't allow the base layer to be popped
@@ -195,7 +199,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
   
   /// Gets a reference to a value `skip_count` layers below the topmost value associated with a key.
   ///
-  /// Computes in **O(n)** time (worst-case) with respect to `skip_count`.
+  /// Computes in **O(n)** time (worst-case) in relation to `skip_count`.
   #[inline]
   pub fn get_parent<Q: ?Sized>(&self, key: &Q, skip_count: usize) -> Option<&V>
   where
@@ -218,7 +222,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
   
   /// Gets a mutable reference to a value `skip_count` layers below the topmost value associated with a key.
   ///
-  /// Computes in **O(n)** time (worst-case) with respect to `skip_count`.
+  /// Computes in **O(n)** time (worst-case) in relation to `skip_count`.
   #[inline]
   pub fn get_parent_mut<Q: ?Sized>(&mut self, key: &Q, skip_count: usize) -> Option<&mut V>
   where
@@ -244,7 +248,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
   ///
   /// Returns `None` if the key does not exist.
   ///
-  /// Computes in **O(n)** time (worst-case) with respect to layer count.
+  /// Computes in **O(n)** time (worst-case) in relation to layer count.
   #[inline]
   pub fn depth_of<Q: ?Sized>(&self, key: &Q) -> Option<usize> 
   where
