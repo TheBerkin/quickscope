@@ -115,6 +115,12 @@ impl<T: Eq + Hash, S: BuildHasher> ScopeSet<T, S> {
     self.map.define(key, ());
   }
 
+  /// Adds the specified key to the layer `skip_count` layers below the top layer. Saturates to base layer.
+  #[inline]
+  pub fn define_parent(&mut self, key: T, skip_count: usize) {
+    self.map.define_parent(key, (), skip_count);
+  }
+
   /// Removes the specified key from the topmost layer.
   #[inline]
   pub fn delete(&mut self, key: T) -> bool {
@@ -192,6 +198,15 @@ mod test {
     let mut set = ScopeSet::new();
     set.define("foo");
     assert_eq!(1, set.len());
+  }
+
+  #[test]
+  fn set_define_parent() {
+    let mut set = ScopeSet::new();
+    set.push_layer();
+    set.define_parent("foo", 1);
+    assert_eq!(Some(1), set.depth_of("foo"));
+    assert!(set.contains("foo"));
   }
 
   #[test]

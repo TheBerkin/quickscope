@@ -8,6 +8,18 @@ use std::{
 use indexmap::{IndexMap};
 use smallvec::{smallvec, SmallVec};
 
+#[inline(always)]
+fn invert_index(index: usize, n: usize) -> usize {
+  if index >= n {
+    return 0
+  }
+
+  match (index, n) {
+    (0, 1) => 0,
+    (i, n) => n - i - 1
+  }
+}
+
 /// A layered hash map for representing scoped variables and their values.
 #[derive(Clone)]
 pub struct ScopeMap<K, V, S: BuildHasher = RandomState> {
@@ -198,6 +210,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
   }
   
   /// Gets a reference to a value `skip_count` layers below the topmost value associated with a key.
+  /// Saturates to base layer.
   ///
   /// Computes in **O(n)** time (worst-case) in relation to `skip_count`.
   #[inline]
@@ -221,6 +234,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
   }
   
   /// Gets a mutable reference to a value `skip_count` layers below the topmost value associated with a key.
+  /// Saturates to base layer.
   ///
   /// Computes in **O(n)** time (worst-case) in relation to `skip_count`.
   #[inline]
@@ -282,6 +296,44 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
       }
     } else {
       *stack.last_mut().unwrap() = value;
+    }
+  }
+
+  /// Adds the specified entry in the layer `skip_count` layers from the top. Saturates to base layer.
+  #[inline]
+  pub fn define_parent(&mut self, key: K, value: V, skip_count: usize) {
+    let depth = self.depth();
+    let entry = self.map.entry(key);
+    let stack_index = entry.index();
+    let is_stack_new = matches!(entry, indexmap::map::Entry::Vacant(..));
+    let stack = entry.or_insert_with(Default::default);
+    let is_new_in_layer = self.layers
+      .iter_mut()
+      .nth_back(skip_count.min(depth - 1))
+      .unwrap()
+      .insert(stack_index);
+    let was_stack_empty = stack.is_empty();
+
+    let stack_skip_count = self
+    .layers
+    .iter()
+    .rev()
+    .take(skip_count)
+    .filter(|layer| layer.contains(&stack_index))
+    .count();
+
+    let index_in_stack = invert_index(stack_skip_count, stack.len());
+
+    if is_new_in_layer {
+      // If the key is new in this layer, we need to insert the value into the key's stack
+      stack.insert(index_in_stack, value);
+
+      if was_stack_empty && !is_stack_new {
+        self.empty_key_count -= 1;
+      }
+    } else {
+      // If the key is already in the layer, just replace the value
+      stack[index_in_stack] = value;
     }
   }
   
@@ -353,6 +405,37 @@ mod test {
     let mut map = ScopeMap::new();
     map.define("foo", 123);
     assert_eq!(1, map.len());
+    assert_eq!(Some(&123), map.get("foo"));
+  }
+
+  #[test]
+  fn map_define_parent() {
+    let mut map = ScopeMap::new();
+    map.push_layer();
+    map.define_parent("foo", 123, 1);
+    assert_eq!(Some(1), map.depth_of("foo"));
+    assert_eq!(Some(&123), map.get_parent("foo", 1));
+    assert_eq!(None, map.get_parent("foo", 2));
+  }
+
+  #[test]
+  fn map_define_parent_after_child() {
+    let mut map = ScopeMap::new();
+    map.push_layer();
+    map.define("foo", 456);
+    map.define_parent("foo", 123, 1);
+    assert_eq!(Some(&456), map.get("foo"));
+    assert_eq!(Some(&123), map.get_parent("foo", 1));
+    map.pop_layer();
+    assert_eq!(Some(&123), map.get("foo"));
+  }
+
+  #[test]
+  fn map_define_parent_saturated() {
+    let mut map = ScopeMap::new();
+    map.push_layer();
+    map.define_parent("foo", 123, 3);
+    assert_eq!(Some(1), map.depth_of("foo"));
     assert_eq!(Some(&123), map.get("foo"));
   }
 
