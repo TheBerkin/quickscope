@@ -1,7 +1,7 @@
 [package]
-name = "hash-scope"
+name = "quickscope"
 description = "Multi-layer HashMap and HashSet implementations for performant representation of variable scopes"
-repository = "https://github.com/TheBerkin/hash-scope"
+repository = "https://github.com/TheBerkin/quickscope"
 license = "MIT"
 version = "0.1.0"
 authors = ["Nicholas Fleck <TheBerkin@users.noreply.github.com>"]

@@ -1,6 +1,6 @@
-# hash-scope
+# quickscope
 
-[![Crates.io](https://img.shields.io/crates/v/hash-scope)](https://crates.io/crates/hash-scope)
+[![Crates.io](https://img.shields.io/crates/v/quickscope)](https://crates.io/crates/quickscope)
 
 Multi-layer `HashMap` and `HashSet` implementations for performant representation of variable scopes.
 
@@ -9,7 +9,7 @@ Multi-layer `HashMap` and `HashSet` implementations for performant representatio
 Please use [cargo-edit](https://crates.io/crates/cargo-edit) to always add the latest version of this library:
 
 ```cmd
-cargo add hash-scope
+cargo add quickscope
 ```
 
 ## Purpose
