@@ -76,13 +76,7 @@ impl<K, V, S: BuildHasher> ScopeMap<K, V, S> {
   pub fn capacity(&self) -> usize {
     self.map.capacity()
   }
-}
 
-impl<K, V, S> ScopeMap<K, V, S> 
-where 
-  K: Eq + Hash,
-  S: BuildHasher,
-{
   /// Returns `true` if the map has no keys.
   #[inline]
   pub fn is_empty(&self) -> bool {
@@ -97,10 +91,15 @@ where
   
   /// Gets the number of active layers.
   #[inline]
-  pub fn layer_count(self) -> usize {
+  pub fn layer_count(&self) -> usize {
     self.layers.len()
   }
-  
+}
+
+impl<K, V, S> ScopeMap<K, V, S> 
+where 
+  S: BuildHasher,
+{
   /// Adds a new, empty layer.
   #[inline]
   pub fn push_layer(&mut self) {
@@ -224,12 +223,14 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
   
   /// Removes a value from the topmost layer.
   #[inline]
-  pub fn delete(&mut self, key: K) {
+  pub fn delete(&mut self, key: K) -> bool {
     if let Some((index, _key, stack)) = self.map.get_full_mut(&key) {
       if self.layers.last_mut().unwrap().remove(&index) {
         stack.pop();
+        return true
       }
     }
+    false
   }
   
   /// Removes all entries in the topmost layer.

@@ -1,6 +1,8 @@
 [package]
 name = "hash-scope"
-description = "Multi-layer HashMap and HashSet implementations for performant representation of lexical variable scopes"
+description = "Multi-layer HashMap and HashSet implementations for performant representation of variable scopes"
+repository = "https://github.com/TheBerkin/hash-scope"
+license = "MIT"
 version = "0.1.0"
 authors = ["Nicholas Fleck <TheBerkin@users.noreply.github.com>"]
 edition = "2018"
