@@ -13,6 +13,8 @@
 //! ### Example
 //!
 //! ```rust
+//! use quickscope::*;
+//!
 //! let mut vars = ScopeMap::new();
 //! 
 //! // Define two variables in main scope
