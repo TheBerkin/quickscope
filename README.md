@@ -1,6 +1,7 @@
 # quickscope
 
 [![Crates.io](https://img.shields.io/crates/v/quickscope)](https://crates.io/crates/quickscope)
+[![Docs.rs](https://docs.rs/quickscope/badge.svg)](https://docs.rs/quickscope)
 
 Multi-layer `HashMap` and `HashSet` implementations for performant representation of variable scopes.
 
