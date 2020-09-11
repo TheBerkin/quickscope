@@ -4,6 +4,14 @@
 
 Multi-layer `HashMap` and `HashSet` implementations for performant representation of variable scopes.
 
+## Installation
+
+Please use [cargo-edit](https://crates.io/crates/cargo-edit) to always add the latest version of this library:
+
+```cmd
+cargo add hash-scope
+```
+
 ## Purpose
 
 This crate contains two data structures, `ScopeMap` and `ScopeSet`, for representing variable scopes and, in the case of `ScopeMap`, associated variable values. Access operations are such that variables in higher (i.e. more specific) scopes override variables in lower (i.e. more general) scopes.
