@@ -2,7 +2,7 @@
 name = "quickscope"
 description = "Multi-layer HashMap and HashSet implementations for performant representation of variable scopes"
 categories = ["algorithms", "data-structures"]
-keywords = ["scoping", "variables", "hashmap", "hashset", "scope"]
+keywords = ["scoping", "variable", "hashmap", "hashset", "scope"]
 repository = "https://github.com/TheBerkin/quickscope"
 license = "MIT"
 version = "0.1.0"
