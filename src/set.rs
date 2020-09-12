@@ -165,11 +165,28 @@ impl<T: Eq + Hash, S: BuildHasher> ScopeSet<T, S> {
   {
     self.map.depth_of(key)
   }
+
+  /// Iterates over the keys in arbitrary order.
+  ///
+  /// The iterator element type is `&'a T`.
+  #[inline]
+  pub fn iter(&self) -> impl Iterator<Item = &T> {
+    self.map.keys()
+  }
+
+  /// Iterates over the top-level keys in arbitrary order.
+  ///
+  /// The iterator element type is `&'a T`.
+  #[inline]
+  pub fn iter_top(&self) -> impl Iterator<Item = &T> {
+    self.map.keys_top()
+  }
 }
 
 #[cfg(test)]
 mod test {
   use super::*;
+  use std::collections::HashSet;
 
   #[test]
   fn set_init() {
@@ -276,5 +293,34 @@ mod test {
     assert_eq!(Some(1), set.depth_of("foo"));
     assert_eq!(Some(0), set.depth_of("bar"));
     assert_eq!(None, set.depth_of("baz"));
+  }
+
+  #[test]
+  fn set_iter() {
+    let mut set = ScopeSet::new();
+    set.define("foo");
+    set.push_layer();
+    set.define("bar");
+    set.push_layer();
+    set.define("baz");
+
+    let expected_keys: HashSet<&str> = ["foo", "bar", "baz"].iter().cloned().collect();
+    let actual_keys: HashSet<&str> = set.iter().cloned().collect();
+    assert_eq!(expected_keys, actual_keys);
+  }
+
+  #[test]
+  fn set_iter_top() {
+    let mut set = ScopeSet::new();
+    set.define("foo");
+    set.push_layer();
+    set.define("bar");
+    set.push_layer();
+    set.define("baz");
+    set.define("qux");
+
+    let expected_keys: HashSet<&str> = ["baz", "qux"].iter().cloned().collect();
+    let actual_keys: HashSet<&str> = set.iter_top().cloned().collect();
+    assert_eq!(expected_keys, actual_keys);
   }
 }

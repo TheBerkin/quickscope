@@ -8,6 +8,8 @@ use std::{
 use indexmap::{IndexMap};
 use smallvec::{smallvec, SmallVec};
 
+type ScopeMapValueStack<V> = SmallVec<[V; 1]>;
+
 #[inline(always)]
 fn invert_index(index: usize, n: usize) -> usize {
   if index >= n {
@@ -23,7 +25,7 @@ fn invert_index(index: usize, n: usize) -> usize {
 /// A layered hash map for representing scoped variables and their values.
 #[derive(Clone)]
 pub struct ScopeMap<K, V, S: BuildHasher = RandomState> {
-  map: IndexMap<K, SmallVec<[V; 1]>, S>,
+  map: IndexMap<K, ScopeMapValueStack<V>, S>,
   layers: SmallVec<[HashSet<usize>; 1]>,
   empty_key_count: usize,
 }
@@ -372,6 +374,64 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
     self.layers.push(Default::default());
     self.empty_key_count = 0;
   }
+
+  /// Iterates over all key-value pairs in arbitrary order.
+  ///
+  /// The iterator element type is `(&'a K, &'a V)`.
+  #[inline]
+  pub fn iter(&self) -> impl Iterator<Item = (&'_ K, &'_ V)> {
+    self.map
+      .iter()
+      .filter_map(|(key, stack)| stack.last().map(|val| (key, val)))
+  }
+
+  /// Iterates over all key-value pairs in the topmost layer in arbitrary order.
+  ///
+  /// The iterator element type is `(&'a K, &'a V)`.
+  #[inline]
+  pub fn iter_top(&self) -> impl Iterator<Item = (&'_ K, &'_ V)> {
+    self.layers
+      .last()
+      .unwrap()
+      .iter()
+      .filter_map(move |i| self.map
+        .get_index(*i)
+        .map(|(key, stack)| (key, stack.last().unwrap()))
+      )
+  }
+
+  /// Iterates over all key-value pairs in arbitrary order, allowing mutation of the values.
+  ///
+  /// The iterator element type is `(&'a K, &'a mut V)`.
+  #[inline]
+  pub fn iter_mut(&mut self) -> impl Iterator<Item = (&'_ K, &'_ mut V)> {
+    self.map
+      .iter_mut()
+      .filter_map(|(key, stack)| stack.last_mut().map(|val| (key, val)))
+  }
+
+  /// Iterates over all keys in arbitrary order.
+  ///
+  /// The iterator element type is `&'a K`.
+  #[inline]
+  pub fn keys(&self) -> impl Iterator<Item = &'_ K> {
+    self.map
+      .iter()
+      .filter(|(_, stack)| !stack.is_empty())
+      .map(|(key, _)| key)
+  }
+
+  /// Iterates over all keys in the topmost layer in arbitrary order.
+  ///
+  /// The iterator element type is `&'a K`.
+  #[inline]
+  pub fn keys_top(&self) -> impl Iterator<Item = &'_ K> {
+    self.layers
+      .last()
+      .unwrap()
+      .iter()
+      .map(move |i| self.map.get_index(*i).unwrap().0)
+  }
 }
 
 #[cfg(test)]
@@ -562,5 +622,87 @@ mod test {
     assert_eq!(Some(1), map.depth_of("foo"));
     assert_eq!(Some(0), map.depth_of("bar"));
     assert_eq!(None, map.depth_of("baz"));
+  }
+
+  #[test]
+  fn map_keys() {
+    let mut map = ScopeMap::new();
+    map.define("foo", 123);
+    map.push_layer();
+    map.define("bar", 456);
+    map.push_layer();
+    map.define("baz", 789);
+
+    let expected_keys: HashSet<&str> = ["foo", "bar", "baz"].iter().cloned().collect();
+    let actual_keys: HashSet<&str> = map.keys().cloned().collect();
+    assert_eq!(expected_keys, actual_keys);
+  }
+
+  #[test]
+  fn map_keys_top() {
+    let mut map = ScopeMap::new();
+    map.define("foo", 123);
+    map.push_layer();
+    map.define("bar", 456);
+    map.push_layer();
+    map.define("baz", 789);
+    map.define("qux", 999);
+
+    let expected_keys: HashSet<&str> = ["baz", "qux"].iter().cloned().collect();
+    let actual_keys: HashSet<&str> = map.keys_top().cloned().collect();
+    assert_eq!(expected_keys, actual_keys);
+  }
+
+  #[test]
+  fn map_iter() {
+    let mut map = ScopeMap::new();
+    map.define("foo", 123);
+    map.define("bar", 123);
+    map.define("baz", 123);
+    map.push_layer();
+    map.define("bar", 456);
+    map.push_layer();
+    map.define("baz", 789);
+
+    let expected_keys: HashSet<(&str, i32)> = [("foo", 123), ("bar", 456), ("baz", 789)].iter().cloned().collect();
+    let actual_keys: HashSet<(&str, i32)> = map.iter().map(|(key, val)| (*key, *val)).collect();
+    assert_eq!(expected_keys, actual_keys);
+  }
+
+  #[test]
+  fn map_iter_top() {
+    let mut map = ScopeMap::new();
+    map.define("foo", 123);
+    map.define("bar", 123);
+    map.define("baz", 123);
+    map.push_layer();
+    map.define("bar", 456);
+    map.push_layer();
+    map.define("baz", 789);
+    map.define("qux", 999);
+
+    let expected_keys: HashSet<(&str, i32)> = [("baz", 789), ("qux", 999)].iter().cloned().collect();
+    let actual_keys: HashSet<(&str, i32)> = map.iter_top().map(|(key, val)| (*key, *val)).collect();
+    assert_eq!(expected_keys, actual_keys);
+  }
+
+  #[test]
+  fn map_iter_mut() {
+    let mut map = ScopeMap::new();
+    map.define("foo", 123);
+    map.define("bar", 123);
+    map.define("baz", 123);
+    map.push_layer();
+    map.define("bar", 456);
+    map.push_layer();
+    map.define("baz", 789);
+
+    for (_k, v) in map.iter_mut() {
+      *v = 999;
+    }
+
+    let expected_keys: HashSet<(&str, i32)> = [("foo", 999), ("bar", 999), ("baz", 999)].iter().cloned().collect();
+    let actual_keys: HashSet<(&str, i32)> = map.iter().map(|(key, val)| (*key, *val)).collect();
+    assert_eq!(expected_keys, actual_keys);
   }
 }
