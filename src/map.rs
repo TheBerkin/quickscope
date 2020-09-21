@@ -259,8 +259,8 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
     None
   }
 
-  /// Gets the depth of the specified key (i.e. how many layers down the key is).
-  /// A depth of 0 means that the current layer contains the key.
+  /// Gets the depth of the specified key (i.e. how many layers down from the top that the key first appears).
+  /// A depth of 0 refers to the top layer.
   ///
   /// Returns `None` if the key does not exist.
   ///
@@ -275,6 +275,28 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
       for (depth, layer) in self.layers.iter().rev().enumerate() {
         if layer.contains(&index) {
           return Some(depth);
+        }
+      }
+    }
+    None
+  }
+
+  /// Gets the height of the specified key (i.e. how many layers up from the bottom that the key last appears).
+  /// A height of 0 refers to the bottom layer.
+  ///
+  /// Returns `None` if the key does not exist.
+  ///
+  /// Computes in **O(n)** time (worst-case) in relation to layer count.
+  #[inline]
+  pub fn height_of<Q: ?Sized>(&self, key: &Q) -> Option<usize> 
+  where
+    K: Borrow<Q>,
+    Q: Eq + Hash,
+  {
+    if let Some((index, ..)) = self.map.get_full(key) {
+      for (height, layer) in self.layers.iter().enumerate().rev() {
+        if layer.contains(&index) {
+          return Some(height);
         }
       }
     }
@@ -622,6 +644,17 @@ mod test {
     assert_eq!(Some(1), map.depth_of("foo"));
     assert_eq!(Some(0), map.depth_of("bar"));
     assert_eq!(None, map.depth_of("baz"));
+  }
+
+  #[test]
+  fn map_height_of() {
+    let mut map = ScopeMap::new();
+    map.define("foo", 123);
+    map.push_layer();
+    map.define("bar", 456);
+    assert_eq!(Some(0), map.height_of("foo"));
+    assert_eq!(Some(1), map.height_of("bar"));
+    assert_eq!(None, map.height_of("baz"));
   }
 
   #[test]

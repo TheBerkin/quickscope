@@ -151,8 +151,8 @@ impl<T: Eq + Hash, S: BuildHasher> ScopeSet<T, S> {
     self.map.contains_key_at_top(key)
   }
 
-  /// Gets the depth of the specified key (i.e. how many layers down the key is).
-  /// A depth of 0 means that the current layer contains the key.
+  /// Gets the depth of the specified key (i.e. how many layers down from the top that the key first appears).
+  /// A depth of 0 refers to the top layer.
   ///
   /// Returns `None` if the key does not exist.
   ///
@@ -164,6 +164,21 @@ impl<T: Eq + Hash, S: BuildHasher> ScopeSet<T, S> {
     Q: Eq + Hash,
   {
     self.map.depth_of(key)
+  }
+
+  /// Gets the height of the specified key (i.e. how many layers up from the bottom that the key last appears).
+  /// A height of 0 refers to the bottom layer.
+  ///
+  /// Returns `None` if the key does not exist.
+  ///
+  /// Computes in **O(n)** time (worst-case) in relation to layer count.
+  #[inline]
+  pub fn height_of<Q: ?Sized>(&self, key: &Q) -> Option<usize> 
+  where
+    T: Borrow<Q>,
+    Q: Eq + Hash,
+  {
+    self.map.height_of(key)
   }
 
   /// Iterates over the keys in arbitrary order.
@@ -293,6 +308,17 @@ mod test {
     assert_eq!(Some(1), set.depth_of("foo"));
     assert_eq!(Some(0), set.depth_of("bar"));
     assert_eq!(None, set.depth_of("baz"));
+  }
+
+  #[test]
+  fn set_height_of() {
+    let mut set = ScopeSet::new();
+    set.define("foo");
+    set.push_layer();
+    set.define("bar");
+    assert_eq!(Some(0), set.height_of("foo"));
+    assert_eq!(Some(1), set.height_of("bar"));
+    assert_eq!(None, set.height_of("baz"));
   }
 
   #[test]

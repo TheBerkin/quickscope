@@ -1,3 +1,8 @@
+### 0.1.3
+
+* Added `.height_of()` method to `ScopeMap` and `ScopeSet`
+* Adjusted phrasing in some doc comments
+
 ### 0.1.2
 
 * Added `.iter()`, `.iter_mut()`, `.iter_top()`, `.keys()`, and `.keys_top()` methods to `ScopeMap`
