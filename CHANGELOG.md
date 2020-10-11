@@ -1,3 +1,7 @@
+### 0.1.5
+
+* Added `.get_parents()` and `.get_parents_mut()` to `ScopeMap`
+
 ### 0.1.4
 
 * Added `.get_all()` and `.get_all_mut()` to `ScopeMap`

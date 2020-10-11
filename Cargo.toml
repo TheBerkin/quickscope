@@ -5,7 +5,7 @@ categories = ["algorithms", "data-structures"]
 keywords = ["scoping", "variable", "hashmap", "hashset", "scope"]
 repository = "https://github.com/TheBerkin/quickscope"
 license = "MIT"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["Nicholas Fleck <TheBerkin@users.noreply.github.com>"]
 edition = "2018"
 

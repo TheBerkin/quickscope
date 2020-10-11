@@ -256,6 +256,30 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
     }
     None
   }
+
+  /// Gets an iterator over references to all values `skip_count` layers below the topmost value associated with a key.
+  /// Saturates to base layer.
+  ///
+  /// Computes in **O(n)** time (worst-case) in relation to `skip_count`.
+  #[inline]
+  pub fn get_parents<Q: ?Sized>(&self, key: &Q, skip_count: usize) -> Option<impl Iterator<Item = &V>>
+  where
+  K: Borrow<Q>,
+  Q: Eq + Hash,
+  {
+    if let Some((stack_index, _key, stack)) = self.map.get_full(key) {
+      // If the skip count exceeds the stack size, it shouldn't matter because take() is self-truncating
+      let stack_skip_count = self
+      .layers
+      .iter()
+      .rev()
+      .take(skip_count)
+      .filter(|layer| layer.contains(&stack_index))
+      .count();
+      return Some(stack.iter().rev().skip(stack_skip_count))
+    }
+    None
+  }
   
   /// Gets a mutable reference to a value `skip_count` layers below the topmost value associated with a key.
   /// Saturates to base layer.
@@ -277,6 +301,30 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
       .filter(|layer| layer.contains(&stack_index))
       .count();
       return stack.iter_mut().rev().nth(stack_skip_count)
+    }
+    None
+  }
+
+  /// Gets an iterator over mutable references to all values `skip_count` layers below the topmost value associated with a key.
+  /// Saturates to base layer.
+  ///
+  /// Computes in **O(n)** time (worst-case) in relation to `skip_count`.
+  #[inline]
+  pub fn get_parents_mut<Q: ?Sized>(&mut self, key: &Q, skip_count: usize) -> Option<impl Iterator<Item = &mut V>>
+  where
+    K: Borrow<Q>,
+    Q: Eq + Hash,
+  {
+    if let Some((stack_index, _key, stack)) = self.map.get_full_mut(key) {
+      // If the skip count exceeds the stack size, it shouldn't matter because take() is self-truncating
+      let stack_skip_count = self
+      .layers
+      .iter()
+      .rev()
+      .take(skip_count)
+      .filter(|layer| layer.contains(&stack_index))
+      .count();
+      return Some(stack.iter_mut().rev().skip(stack_skip_count))
     }
     None
   }
@@ -614,6 +662,18 @@ mod test {
     map.define("foo", 3);
     let values = map.get_all("foo").map(|values| values.cloned().collect::<Vec<i32>>());
     assert_eq!(Some(vec![3, 2, 1]), values);
+  }
+
+  #[test]
+  fn map_get_parents() {
+    let mut map = ScopeMap::new();
+    map.define("foo", 1);
+    map.push_layer();
+    map.define("foo", 2);
+    map.push_layer();
+    map.define("foo", 3);
+    let values = map.get_parents("foo", 1).map(|values| values.cloned().collect::<Vec<i32>>());
+    assert_eq!(Some(vec![2, 1]), values);
   }
 
   #[test]
