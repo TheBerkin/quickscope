@@ -198,6 +198,17 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
   {
     self.map.get(key).and_then(|v| v.last())
   }
+
+  /// Gets an iterator over references to all the values associated with a key, starting with the topmost and going down.
+  ///
+  /// Computes in **O(1)** time.
+  #[inline]
+  pub fn get_all<Q: ?Sized>(&self, key: &Q) -> Option<impl Iterator<Item = &V>>
+  where K: Borrow<Q>,
+  Q: Eq + Hash
+  {
+    self.map.get(key).map(|stack| stack.iter().rev())
+  }
   
   /// Gets a mutable reference to the topmost value associated with a key.
   ///
@@ -209,6 +220,17 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
   Q: Eq + Hash,
   {
     self.map.get_mut(key).and_then(|v| v.last_mut())
+  }
+
+  /// Gets an iterator over mutable references to all the values associated with a key, starting with the topmost and going down.
+  ///
+  /// Computes in **O(1)** time.
+  #[inline]
+  pub fn get_all_mut<Q: ?Sized>(&mut self, key: &Q) -> Option<impl Iterator<Item = &mut V>>
+  where K: Borrow<Q>,
+  Q: Eq + Hash
+  {
+    self.map.get_mut(key).map(|stack| stack.iter_mut().rev())
   }
   
   /// Gets a reference to a value `skip_count` layers below the topmost value associated with a key.
@@ -580,6 +602,18 @@ mod test {
     map.push_layer();
     map.define("foo", 123);
     assert_eq!(None, map.get_parent("foo", 1));
+  }
+
+  #[test]
+  fn map_get_all() {
+    let mut map = ScopeMap::new();
+    map.define("foo", 1);
+    map.push_layer();
+    map.define("foo", 2);
+    map.push_layer();
+    map.define("foo", 3);
+    let values = map.get_all("foo").map(|values| values.cloned().collect::<Vec<i32>>());
+    assert_eq!(Some(vec![3, 2, 1]), values);
   }
 
   #[test]

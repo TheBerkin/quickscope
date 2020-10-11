@@ -1,3 +1,7 @@
+### 0.1.4
+
+* Added `.get_all()` and `.get_all_mut()` to `ScopeMap`
+
 ### 0.1.3
 
 * Added `.height_of()` method to `ScopeMap` and `ScopeSet`
