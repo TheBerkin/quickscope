@@ -12,21 +12,33 @@ type ScopeMapValueStack<V> = SmallVec<[V; 1]>;
 
 #[inline(always)]
 fn invert_index(index: usize, n: usize) -> usize {
-  if index >= n {
-    return 0
+  return if index >= n {
+    0
+  } else {
+    n - index - 1
   }
+}
 
-  match (index, n) {
-    (0, 1) => 0,
-    (i, n) => n - i - 1
-  }
+#[derive(Clone)]
+struct Var<T> {
+  value: T,
+  layer: usize,
 }
 
 /// A layered hash map for representing scoped variables and their values.
 #[derive(Clone)]
 pub struct ScopeMap<K, V, S: BuildHasher = RandomState> {
-  map: IndexMap<K, ScopeMapValueStack<V>, S>,
+  /// Stores a value stack for each variable.
+  ///
+  /// The bottom of a variable's stack corresponds to the lowest layer on which the variable appears.
+  map: IndexMap<K, ScopeMapValueStack<Var<V>>, S>,
+  /// Stores the layers of the stack.
+  ///
+  /// Each layer contains map indices indicating which variables are created or updated in that layer.
   layers: SmallVec<[HashSet<usize>; 1]>,
+  /// The number of currently empty variable stacks.
+  ///
+  /// Used internally to accurately calculate the number of active variables.
   empty_key_count: usize,
 }
 
@@ -184,7 +196,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
     K: Borrow<Q>,
     Q: Eq + Hash,
   {
-    self.map.get_full(key).map_or(false, |(index, ..)| self.layers.last().unwrap().contains(&index))
+    self.map.get_index_of(key).map_or(false, |i| self.layers.last().unwrap().contains(&i))
   }
   
   /// Gets a reference to the topmost value associated with a key.
@@ -196,7 +208,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
   K: Borrow<Q>,
   Q: Eq + Hash,
   {
-    self.map.get(key).and_then(|v| v.last())
+    self.map.get(key).and_then(|v| v.last().map(|v| &v.value))
   }
 
   /// Gets an iterator over references to all the values associated with a key, starting with the topmost and going down.
@@ -207,7 +219,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
   where K: Borrow<Q>,
   Q: Eq + Hash
   {
-    self.map.get(key).map(|stack| stack.iter().rev())
+    self.map.get(key).map(|stack| stack.iter().rev().map(|v| &v.value))
   }
   
   /// Gets a mutable reference to the topmost value associated with a key.
@@ -219,7 +231,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
   K: Borrow<Q>,
   Q: Eq + Hash,
   {
-    self.map.get_mut(key).and_then(|v| v.last_mut())
+    self.map.get_mut(key).and_then(|v| v.last_mut().map(|v| &mut v.value))
   }
 
   /// Gets an iterator over mutable references to all the values associated with a key, starting with the topmost and going down.
@@ -230,101 +242,149 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
   where K: Borrow<Q>,
   Q: Eq + Hash
   {
-    self.map.get_mut(key).map(|stack| stack.iter_mut().rev())
+    self.map.get_mut(key).map(|stack| stack.iter_mut().rev().map(|v| &mut v.value))
   }
   
-  /// Gets a reference to a value `skip_count` layers below the topmost value associated with a key.
+  /// Gets a reference to a value `min_depth` layers below the topmost value associated with a key.
   /// Saturates to base layer.
   ///
-  /// Computes in **O(n)** time (worst-case) in relation to `skip_count`.
+  /// Computes in **O(n)** time (worst-case) in relation to `min_depth`.
   #[inline]
-  pub fn get_parent<Q: ?Sized>(&self, key: &Q, skip_count: usize) -> Option<&V>
+  pub fn get_parent<Q: ?Sized>(&self, key: &Q, min_depth: usize) -> Option<&V>
   where
   K: Borrow<Q>,
   Q: Eq + Hash,
   {
-    if let Some((stack_index, _key, stack)) = self.map.get_full(key) {
+    if let Some((var_index, _key, stack)) = self.map.get_full(key) { 
       // If the skip count exceeds the stack size, it shouldn't matter because take() is self-truncating
       let stack_skip_count = self
       .layers
       .iter()
       .rev()
-      .take(skip_count)
-      .filter(|layer| layer.contains(&stack_index))
+      .take(min_depth)
+      .filter(|layer| layer.contains(&var_index))
       .count();
-      return stack.iter().rev().nth(stack_skip_count)
+      return stack.iter().rev().nth(stack_skip_count).map(|v| &v.value)
     }
     None
   }
 
-  /// Gets an iterator over references to all values `skip_count` layers below the topmost value associated with a key.
+  /// Gets a reference to the value associated with a key at least `min_depth` layers below the topmost layer, as well as its associated depth.
   /// Saturates to base layer.
   ///
-  /// Computes in **O(n)** time (worst-case) in relation to `skip_count`.
+  /// Computes in **O(n)** time (worst-case) in relation to `min_depth`.
   #[inline]
-  pub fn get_parents<Q: ?Sized>(&self, key: &Q, skip_count: usize) -> Option<impl Iterator<Item = &V>>
+  pub fn get_parent_depth<Q: ?Sized>(&self, key: &Q, min_depth: usize) -> Option<(&V, usize)>
   where
   K: Borrow<Q>,
   Q: Eq + Hash,
   {
-    if let Some((stack_index, _key, stack)) = self.map.get_full(key) {
+    if let Some((var_index, _key, stack)) = self.map.get_full(key) {
       // If the skip count exceeds the stack size, it shouldn't matter because take() is self-truncating
       let stack_skip_count = self
       .layers
       .iter()
       .rev()
-      .take(skip_count)
-      .filter(|layer| layer.contains(&stack_index))
+      .take(min_depth)
+      .filter(|layer| layer.contains(&var_index))
       .count();
-      return Some(stack.iter().rev().skip(stack_skip_count))
-    }
-    None
-  }
-  
-  /// Gets a mutable reference to a value `skip_count` layers below the topmost value associated with a key.
-  /// Saturates to base layer.
-  ///
-  /// Computes in **O(n)** time (worst-case) in relation to `skip_count`.
-  #[inline]
-  pub fn get_parent_mut<Q: ?Sized>(&mut self, key: &Q, skip_count: usize) -> Option<&mut V>
-  where
-    K: Borrow<Q>,
-    Q: Eq + Hash,
-  {
-    if let Some((stack_index, _key, stack)) = self.map.get_full_mut(key) {
-      // If the skip count exceeds the stack size, it shouldn't matter because take() is self-truncating
-      let stack_skip_count = self
-      .layers
-      .iter()
-      .rev()
-      .take(skip_count)
-      .filter(|layer| layer.contains(&stack_index))
-      .count();
-      return stack.iter_mut().rev().nth(stack_skip_count)
+      return stack.iter().rev().nth(stack_skip_count).map(|v| (&v.value, invert_index(v.layer, self.depth())))
     }
     None
   }
 
-  /// Gets an iterator over mutable references to all values `skip_count` layers below the topmost value associated with a key.
+  /// Gets a reference to the value associated with a key at least `min_depth` layers below the topmost layer, as well as its associated height.
   /// Saturates to base layer.
   ///
-  /// Computes in **O(n)** time (worst-case) in relation to `skip_count`.
+  /// Computes in **O(n)** time (worst-case) in relation to `min_depth`.
   #[inline]
-  pub fn get_parents_mut<Q: ?Sized>(&mut self, key: &Q, skip_count: usize) -> Option<impl Iterator<Item = &mut V>>
+  pub fn get_parent_height<Q: ?Sized>(&self, key: &Q, min_depth: usize) -> Option<(&V, usize)>
   where
-    K: Borrow<Q>,
-    Q: Eq + Hash,
+  K: Borrow<Q>,
+  Q: Eq + Hash,
   {
-    if let Some((stack_index, _key, stack)) = self.map.get_full_mut(key) {
+    if let Some((var_index, _key, stack)) = self.map.get_full(key) {
       // If the skip count exceeds the stack size, it shouldn't matter because take() is self-truncating
       let stack_skip_count = self
       .layers
       .iter()
       .rev()
-      .take(skip_count)
-      .filter(|layer| layer.contains(&stack_index))
+      .take(min_depth)
+      .filter(|layer| layer.contains(&var_index))
       .count();
-      return Some(stack.iter_mut().rev().skip(stack_skip_count))
+      return stack.iter().rev().nth(stack_skip_count).map(|v| (&v.value, v.layer))
+    }
+    None
+  }
+
+  /// Gets an iterator over references to all values `min_depth` layers below the topmost value associated with a key.
+  /// Saturates to base layer.
+  ///
+  /// Computes in **O(n)** time (worst-case) in relation to `min_depth`.
+  #[inline]
+  pub fn get_parents<Q: ?Sized>(&self, key: &Q, min_depth: usize) -> Option<impl Iterator<Item = &V>>
+  where
+  K: Borrow<Q>,
+  Q: Eq + Hash,
+  {
+    if let Some((var_index, _key, stack)) = self.map.get_full(key) {
+      // If the skip count exceeds the stack size, it shouldn't matter because take() is self-truncating
+      let stack_skip_count = self
+      .layers
+      .iter()
+      .rev()
+      .take(min_depth)
+      .filter(|layer| layer.contains(&var_index))
+      .count();
+      return Some(stack.iter().rev().skip(stack_skip_count).map(|v| &v.value))
+    }
+    None
+  }
+  
+  /// Gets a mutable reference to a value `min_depth` layers below the topmost value associated with a key.
+  /// Saturates to base layer.
+  ///
+  /// Computes in **O(n)** time (worst-case) in relation to `min_depth`.
+  #[inline]
+  pub fn get_parent_mut<Q: ?Sized>(&mut self, key: &Q, min_depth: usize) -> Option<&mut V>
+  where
+    K: Borrow<Q>,
+    Q: Eq + Hash,
+  {
+    if let Some((var_index, _key, stack)) = self.map.get_full_mut(key) {
+      // If the skip count exceeds the stack size, it shouldn't matter because take() is self-truncating
+      let stack_skip_count = self
+      .layers
+      .iter()
+      .rev()
+      .take(min_depth)
+      .filter(|layer| layer.contains(&var_index))
+      .count();
+      return stack.iter_mut().rev().nth(stack_skip_count).map(|v| &mut v.value)
+    }
+    None
+  }
+
+  /// Gets an iterator over mutable references to all values `min_depth` layers below the topmost value associated with a key.
+  /// Saturates to base layer.
+  ///
+  /// Computes in **O(n)** time (worst-case) in relation to `min_depth`.
+  #[inline]
+  pub fn get_parents_mut<Q: ?Sized>(&mut self, key: &Q, min_depth: usize) -> Option<impl Iterator<Item = &mut V>>
+  where
+    K: Borrow<Q>,
+    Q: Eq + Hash,
+  {
+    if let Some((var_index, _key, stack)) = self.map.get_full_mut(key) {
+      // If the skip count exceeds the stack size, it shouldn't matter because take() is self-truncating
+      let stack_skip_count = self
+      .layers
+      .iter()
+      .rev()
+      .take(min_depth)
+      .filter(|layer| layer.contains(&var_index))
+      .count();
+      return Some(stack.iter_mut().rev().skip(stack_skip_count).map(|v| &mut v.value))
     }
     None
   }
@@ -341,7 +401,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
     K: Borrow<Q>,
     Q: Eq + Hash,
   {
-    if let Some((index, ..)) = self.map.get_full(key) {
+    if let Some(index) = self.map.get_index_of(key) {
       for (depth, layer) in self.layers.iter().rev().enumerate() {
         if layer.contains(&index) {
           return Some(depth);
@@ -363,7 +423,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
     K: Borrow<Q>,
     Q: Eq + Hash,
   {
-    if let Some((index, ..)) = self.map.get_full(key) {
+    if let Some(index) = self.map.get_index_of(key) {
       for (height, layer) in self.layers.iter().enumerate().rev() {
         if layer.contains(&index) {
           return Some(height);
@@ -376,34 +436,38 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
   /// Adds the specified entry to the topmost layer.
   #[inline]
   pub fn define(&mut self, key: K, value: V) {
+    let height = self.depth();
     let entry = self.map.entry(key);
-    let stack_index = entry.index();
+    let var_index = entry.index();
     let is_stack_new = matches!(entry, indexmap::map::Entry::Vacant(..));
     let stack = entry.or_insert_with(Default::default);
-    let is_new_in_layer = self.layers.last_mut().unwrap().insert(stack_index);
+    let is_new_in_layer = self.layers.last_mut().unwrap().insert(var_index);
     let was_stack_empty = stack.is_empty();
     
     if is_new_in_layer {
-      stack.push(value);
+      stack.push(Var {
+        value,
+        layer: height - 1,
+      });
       if was_stack_empty && !is_stack_new {
         self.empty_key_count -= 1;
       }
     } else {
-      *stack.last_mut().unwrap() = value;
+      stack.last_mut().unwrap().value = value;
     }
   }
 
-  /// Adds the specified entry in the layer `skip_count` layers from the top. Saturates to base layer.
+  /// Adds the specified entry in the layer `min_depth` layers from the top. Saturates to base layer.
   #[inline]
-  pub fn define_parent(&mut self, key: K, value: V, skip_count: usize) {
-    let depth = self.depth();
+  pub fn define_parent(&mut self, key: K, value: V, min_depth: usize) {
+    let height = self.depth();
     let entry = self.map.entry(key);
     let stack_index = entry.index();
     let is_stack_new = matches!(entry, indexmap::map::Entry::Vacant(..));
     let stack = entry.or_insert_with(Default::default);
     let is_new_in_layer = self.layers
       .iter_mut()
-      .nth_back(skip_count.min(depth - 1))
+      .nth_back(min_depth.min(height - 1))
       .unwrap()
       .insert(stack_index);
     let was_stack_empty = stack.is_empty();
@@ -412,7 +476,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
     .layers
     .iter()
     .rev()
-    .take(skip_count)
+    .take(min_depth)
     .filter(|layer| layer.contains(&stack_index))
     .count();
 
@@ -420,14 +484,17 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
 
     if is_new_in_layer {
       // If the key is new in this layer, we need to insert the value into the key's stack
-      stack.insert(index_in_stack, value);
+      stack.insert(index_in_stack, Var {
+        value,
+        layer: height.saturating_sub(min_depth + 1),
+      });
 
       if was_stack_empty && !is_stack_new {
         self.empty_key_count -= 1;
       }
     } else {
       // If the key is already in the layer, just replace the value
-      stack[index_in_stack] = value;
+      stack[index_in_stack].value = value;
     }
   }
   
@@ -474,7 +541,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
   pub fn iter(&self) -> impl Iterator<Item = (&'_ K, &'_ V)> {
     self.map
       .iter()
-      .filter_map(|(key, stack)| stack.last().map(|val| (key, val)))
+      .filter_map(|(key, stack)| stack.last().map(|var| (key, &var.value)))
   }
 
   /// Iterates over all key-value pairs in the topmost layer in arbitrary order.
@@ -488,7 +555,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
       .iter()
       .filter_map(move |i| self.map
         .get_index(*i)
-        .map(|(key, stack)| (key, stack.last().unwrap()))
+        .map(|(key, stack)| (key, &stack.last().unwrap().value))
       )
   }
 
@@ -499,7 +566,7 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
   pub fn iter_mut(&mut self) -> impl Iterator<Item = (&'_ K, &'_ mut V)> {
     self.map
       .iter_mut()
-      .filter_map(|(key, stack)| stack.last_mut().map(|val| (key, val)))
+      .filter_map(|(key, stack)| stack.last_mut().map(|var| (key, &mut var.value)))
   }
 
   /// Iterates over all keys in arbitrary order.
@@ -650,6 +717,30 @@ mod test {
     map.push_layer();
     map.define("foo", 123);
     assert_eq!(None, map.get_parent("foo", 1));
+  }
+
+  #[test]
+  fn map_get_parent_depth() {
+    let mut map = ScopeMap::new();
+    map.define("foo", 123);
+    map.push_layer();
+    map.push_layer();
+    map.define("foo", 456);
+    assert_eq!(Some((&456, 0)), map.get_parent_depth("foo", 0));
+    assert_eq!(Some((&123, 2)), map.get_parent_depth("foo", 1));
+    assert_eq!(Some((&123, 2)), map.get_parent_depth("foo", 2));
+  }
+
+  #[test]
+  fn map_get_parent_height() {
+    let mut map = ScopeMap::new();
+    map.define("foo", 123);
+    map.push_layer();
+    map.push_layer();
+    map.define("foo", 456);
+    assert_eq!(Some((&456, 2)), map.get_parent_height("foo", 0));
+    assert_eq!(Some((&123, 0)), map.get_parent_height("foo", 1));
+    assert_eq!(Some((&123, 0)), map.get_parent_height("foo", 2));
   }
 
   #[test]

@@ -5,12 +5,12 @@ categories = ["algorithms", "data-structures"]
 keywords = ["scoping", "variable", "hashmap", "hashset", "scope"]
 repository = "https://github.com/TheBerkin/quickscope"
 license = "MIT"
-version = "0.1.5"
-authors = ["Nicholas Fleck <TheBerkin@users.noreply.github.com>"]
+version = "0.1.6"
+authors = ["Berkin <TheBerkin@users.noreply.github.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-smallvec = "1.4.2"
-indexmap = "1.6.0"
+smallvec = "1.6.1"
+indexmap = "1.6.1"

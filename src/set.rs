@@ -115,10 +115,10 @@ impl<T: Eq + Hash, S: BuildHasher> ScopeSet<T, S> {
     self.map.define(key, ());
   }
 
-  /// Adds the specified key to the layer `skip_count` layers below the top layer. Saturates to base layer.
+  /// Adds the specified key to the layer `min_depth` layers below the top layer. Saturates to base layer.
   #[inline]
-  pub fn define_parent(&mut self, key: T, skip_count: usize) {
-    self.map.define_parent(key, (), skip_count);
+  pub fn define_parent(&mut self, key: T, min_depth: usize) {
+    self.map.define_parent(key, (), min_depth);
   }
 
   /// Removes the specified key from the topmost layer.
@@ -166,6 +166,22 @@ impl<T: Eq + Hash, S: BuildHasher> ScopeSet<T, S> {
     self.map.depth_of(key)
   }
 
+  /// Gets the depth of the specified key (i.e. how many layers down from the top that the key first appears), 
+  /// but ignores a maximum number of layers from the top equal to `min_depth`.
+  /// Saturates to base layer. 
+  ///
+  /// Returns `None` if the key does not exist.
+  ///
+  /// Computes in **O(n)** time (worst-case) in relation to layer count.
+  #[inline]
+  pub fn depth_of_parent<Q: ?Sized>(&self, key: &Q, min_depth: usize) -> Option<usize> 
+  where
+    T: Borrow<Q>,
+    Q: Eq + Hash,
+  {
+    self.map.get_parent_depth(key, min_depth).map(|(_, d)| d)
+  }
+
   /// Gets the height of the specified key (i.e. how many layers up from the bottom that the key last appears).
   /// A height of 0 refers to the bottom layer.
   ///
@@ -175,10 +191,27 @@ impl<T: Eq + Hash, S: BuildHasher> ScopeSet<T, S> {
   #[inline]
   pub fn height_of<Q: ?Sized>(&self, key: &Q) -> Option<usize> 
   where
+  T: Borrow<Q>,
+  Q: Eq + Hash,
+  {
+    self.map.height_of(key)
+  }
+  
+  /// Gets the height of the specified key (i.e. how many layers up from the bottom that the key last appears),
+  /// but ignores a maximum number of layers from the top equal to `min_depth`.
+  /// A height of 0 refers to the bottom layer.
+  /// Saturates to base layer.
+  ///
+  /// Returns `None` if the key does not exist.
+  ///
+  /// Computes in **O(n)** time (worst-case) in relation to layer count.
+  #[inline]
+  pub fn height_of_parent<Q: ?Sized>(&self, key: &Q, min_depth: usize) -> Option<usize> 
+  where
     T: Borrow<Q>,
     Q: Eq + Hash,
   {
-    self.map.height_of(key)
+    self.map.get_parent_height(key, min_depth).map(|(_, h)| h)
   }
 
   /// Iterates over the keys in arbitrary order.
@@ -311,6 +344,18 @@ mod test {
   }
 
   #[test]
+  fn set_depth_of_parent() {
+    let mut set = ScopeSet::new();
+    set.define("foo");
+    set.push_layer();
+    set.push_layer();
+    set.define("foo");
+    assert_eq!(Some(0), set.depth_of_parent("foo", 0));
+    assert_eq!(Some(2), set.depth_of_parent("foo", 1));
+    assert_eq!(Some(2), set.depth_of_parent("foo", 2));
+  }
+
+  #[test]
   fn set_height_of() {
     let mut set = ScopeSet::new();
     set.define("foo");
@@ -319,6 +364,18 @@ mod test {
     assert_eq!(Some(0), set.height_of("foo"));
     assert_eq!(Some(1), set.height_of("bar"));
     assert_eq!(None, set.height_of("baz"));
+  }
+
+  #[test]
+  fn set_height_of_parent() {
+    let mut set = ScopeSet::new();
+    set.define("foo");
+    set.push_layer();
+    set.push_layer();
+    set.define("foo");
+    assert_eq!(Some(2), set.height_of_parent("foo", 0));
+    assert_eq!(Some(0), set.height_of_parent("foo", 1));
+    assert_eq!(Some(0), set.height_of_parent("foo", 2));
   }
 
   #[test]
