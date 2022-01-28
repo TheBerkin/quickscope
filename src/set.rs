@@ -121,10 +121,14 @@ impl<T: Eq + Hash, S: BuildHasher> ScopeSet<T, S> {
     self.map.define_parent(key, (), min_depth);
   }
 
-  /// Removes the specified key from the topmost layer.
+  /// Removes the specified key from the topmost layer and returns it.
   #[inline]
-  pub fn delete(&mut self, key: T) -> bool {
-    self.map.delete(key)
+  pub fn remove<Q: ?Sized>(&mut self, key: &Q) -> bool
+  where
+    T: Borrow<Q>,
+    Q: Eq + Hash,
+  {
+    self.map.remove(key).is_some()
   }
 
   /// Returns `true` if any layer contains the specified key.
@@ -278,7 +282,7 @@ mod test {
   fn set_delete() {
     let mut set = ScopeSet::new();
     set.define("foo");
-    set.delete("foo");
+    set.remove("foo");
     assert!(!set.contains("foo"));
   }
 

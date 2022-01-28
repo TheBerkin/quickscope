@@ -12,7 +12,7 @@ type ScopeMapValueStack<V> = SmallVec<[V; 1]>;
 
 #[inline(always)]
 fn invert_index(index: usize, n: usize) -> usize {
-  return if index >= n {
+  if index >= n {
     0
   } else {
     n - index - 1
@@ -497,20 +497,25 @@ impl<K: Eq + Hash, V, S: BuildHasher> ScopeMap<K, V, S> {
       stack[index_in_stack].value = value;
     }
   }
-  
-  /// Removes the entry with the specified key from the topmost layer.
+
+  /// Removes the entry with the specified key from the topmost layer and returns its value.
   #[inline]
-  pub fn delete(&mut self, key: K) -> bool {
-    if let Some((index, _key, stack)) = self.map.get_full_mut(&key) {
+  pub fn remove<Q: ?Sized>(&mut self, key: &Q) -> Option<V>
+  where
+    K: Borrow<Q>,
+    Q: Eq + Hash, 
+  {
+    if let Some((index, _key, stack)) = self.map.get_full_mut(key) {
       if self.layers.last_mut().unwrap().remove(&index) {
-        let stack_just_emptied = stack.pop().is_some() && stack.is_empty();
+        let taken = stack.pop();
+        let stack_just_emptied = taken.is_some() && stack.is_empty();
         if stack_just_emptied {
           self.empty_key_count += 1;
         }
-        return true
+        return taken.map(|v| v.value)
       }
     }
-    false
+    None
   }
   
   /// Removes all entries in the topmost layer.
@@ -659,12 +664,13 @@ mod test {
   }
 
   #[test]
-  fn map_delete() {
+  fn map_remove() {
     let mut map = ScopeMap::new();
     map.define("foo", 123);
-    map.delete("foo");
+    let removed = map.remove("foo");
     assert_eq!(0, map.len());
     assert_eq!(None, map.get("foo"));
+    assert_eq!(Some(123), removed);
     assert!(!map.contains_key("foo"));
   }
 
@@ -782,7 +788,7 @@ mod test {
     map.define("foo", 123);
     map.push_layer();
     map.define("foo", 456);
-    map.delete("foo");
+    map.remove("foo");
     assert_eq!(Some(&123), map.get("foo"));
   }
 

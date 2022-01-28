@@ -1,3 +1,7 @@
+### 0.2.0
+* Removed `delete()` from `ScopeMap` and `ScopeSet`
+* Added `remove()` to `ScopeMap` and `ScopeSet`
+
 ### 0.1.6
 
 * Added `get_parent_depth()` and `get_parent_height()` methods to `ScopeMap`
